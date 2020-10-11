@@ -1,0 +1,15 @@
+.custom-border-image {
+  border-radius: 20px;
+}
+
+.custom-border-image:hover {
+  cursor: pointer;
+}
+
+.box {
+  display: inline-block;
+  box-sizing: border-box;
+}
+.img-preview {
+  overflow: hidden;
+}
