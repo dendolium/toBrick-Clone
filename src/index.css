@@ -13,3 +13,19 @@
 .img-preview {
   overflow: hidden;
 }
+
+.peg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: url(https://ik.imagekit.io/mevius/lego/v2-peg_W68re12o5m.png?tr=w-16,h-16:cm-pad_extract,w-20,h-20,q-80,f-png);
+  background-repeat: repeat;
+  background-size: 20px 20px;
+  z-index: 200;
+}
+
+.display {
+  display: block;
+}
