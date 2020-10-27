@@ -1,0 +1,13 @@
+[debug] [2020-10-22T11:45:39.843Z] ----------------------------------------------------------------------
+[debug] [2020-10-22T11:45:39.846Z] Command:       /usr/bin/node /usr/local/bin/firebase deploy --only functions:checkout,functions:sendInstructions
+[debug] [2020-10-22T11:45:39.846Z] CLI Version:   8.4.2
+[debug] [2020-10-22T11:45:39.846Z] Platform:      linux
+[debug] [2020-10-22T11:45:39.846Z] Node Version:  v10.15.2
+[debug] [2020-10-22T11:45:39.847Z] Time:          Thu Oct 22 2020 16:45:39 GMT+0500 (Pakistan Standard Time)
+[debug] [2020-10-22T11:45:39.847Z] ----------------------------------------------------------------------
+[debug] [2020-10-22T11:45:39.847Z] 
+[debug] [2020-10-22T11:45:39.856Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2020-10-22T11:45:39.856Z] > authorizing via signed-in user
+[debug] [2020-10-22T11:45:39.856Z] [iam] checking project to-brick-clone for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2020-10-22T11:45:39.860Z] >>> HTTP REQUEST POST https://cloudresourcemanager.googleapis.com/v1/projects/to-brick-clone:testIamPermissions  
+ {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}

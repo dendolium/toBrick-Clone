@@ -1,0 +1,3 @@
+
+- look for a solution 
+- deploy and ship

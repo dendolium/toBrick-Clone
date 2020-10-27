@@ -29,3 +29,37 @@
 .display {
   display: block;
 }
+
+.container32 {
+  position: relative;
+  width: 640px;
+  height: 640px;
+  text-align: center;
+  margin: 1em auto;
+}
+.container48 {
+  position: relative;
+  width: 960px;
+  height: 960px;
+  text-align: center;
+  margin: 1em auto;
+}
+
+.overflow-y {
+  overflow-x: scroll;
+  overflow-y: hidden;
+}
+
+.loading-container {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vw;
+  /* opacity: 0.5; */
+  padding-top: 40vw;
+  padding-left: 45vw;
+  font-size: 1.2em;
+  background-color: white;
+  z-index: 12345678;
+}

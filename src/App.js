@@ -4,11 +4,23 @@ import Cropper from "react-cropper";
 import "cropperjs/dist/cropper.css";
 import * as imageConversion from "image-conversion";
 import * as DitherJS from "ditherjs";
+// import Stripe from 'stripe';
+// const stripe = new Stripe('pk_test_51HcHKQHgSkHhHhou2FYxwoAig6hXBSPneKhX5X80nnSFynEDyltmVkPOKy0nbd0Y3HDSwyNSUC2RMrzaLHZ0zcfF00DLLeY3Nj');
+import getCanvasPixelColor from "get-canvas-pixel-color";
+import { Range } from "react-range";
+import { loadStripe } from "@stripe/stripe-js";
+import axios from "axios";
+import { storage } from "./firebase";
+import domtoimage from "dom-to-image";
+
+const stripePromise = loadStripe(
+  "pk_test_51HcHKQHgSkHhHhou2FYxwoAig6hXBSPneKhX5X80nnSFynEDyltmVkPOKy0nbd0Y3HDSwyNSUC2RMrzaLHZ0zcfF00DLLeY3Nj"
+);
 
 function App() {
   //OPTIONS USED
   var options32color = {
-    step: 32, // image width / number of pegs = step (960/32=30)
+    step: 20, // image width / number of pegs = step (960/32=30)
     algorithm: "ordered",
     palette: [
       [242, 243, 242], // White					(ID - 1)
@@ -27,7 +39,7 @@ function App() {
   };
 
   var options32bw = {
-    step: 32, // image width / number of pegs = step (960/32=30)
+    step: 20, // image width / number of pegs = step (960/32=30)
     algorithm: "ordered",
     palette: [
       [242, 243, 242], // White					(ID - 1)
@@ -69,16 +81,27 @@ function App() {
 
   const [cropper, setCropper] = useState(0);
   const [imageToBeUsed, setImageToBeUsed] = useState("");
+  const [fileToBeUsed, setFileToBeUsed] = useState("");
   const [croppedImage, setCroppedImage] = useState("");
   const [dithered, setDithered] = useState(false);
-  const [currentImageID, setCurrenImageID] = useState("");
+  const [values, setValues] = useState([0]);
+  const [totoalAmountToBePaid, setTotalAmountToBePaid] = useState(0);
+  const [paymentInProcess, setPaymentInProcess] = useState(false);
+  const [ErrorInAmountToBePaid, setErrorInAmountToBePaid] = useState(false);
+  const [instructionsObject, setInstructionsObject] = useState({});
+  const [showPayButton, setShowPayButton] = useState(false);
+  const [IDForDitheredImage, setIDForDitheredImage] = useState(false);
+  const [loadingForSelect, setLoadingForSelect] = useState(false);
+  const [textToBeShownWhileLoading, setTextToBeShownWhileLoading] = useState(
+    ""
+  );
 
   //changing the image
   const changeImage = (files) => {
     setImageToBeUsed(files[0].name);
+    setFileToBeUsed(files[0]);
     setDithered(false);
     setCroppedImage("");
-    setCurrenImageID("");
 
     console.log(files[0]);
     imageConversion.filetoDataURL(files[0]).then((res) => {
@@ -92,268 +115,506 @@ function App() {
     setCroppedImage(cropper.getCroppedCanvas().toDataURL());
   };
 
+  //apply dithering to specific image
   const ditherImage = (e) => {
-    const id = e.target.id;
-    setCurrenImageID(id);
-    console.log(id);
-    setCroppedImage(cropper.getCroppedCanvas().toDataURL());
-    if (id == "1") {
-      const ditherjs32BW = new DitherJS(options32bw);
-      const options32BWImage = document.getElementById("options32BWImage");
-      ditherjs32BW.dither(options32BWImage, options32bw);
-    } else if (id == "2") {
-      const ditherjs32Color = new DitherJS(options32color);
-      const options32colorImage = document.getElementById(
-        "options32colorImage"
-      );
-      ditherjs32Color.dither(options32colorImage, options32color);
-    } else if (id == "3") {
-      const ditherjs32Color = new DitherJS(options48bw);
-      const options48BWImage = document.getElementById("options48BWImage");
-      ditherjs32Color.dither(options48BWImage, options48bw);
+    //32 B&W
+    const ditherjs32BW = new DitherJS(options32bw);
+    const options32BWImage = document.getElementById("options32BWImage");
+    ditherjs32BW.dither(options32BWImage, options32bw);
+
+    // 32 color
+    const ditherjs32Color = new DitherJS(options32color);
+    const options32colorImage = document.getElementById("options32colorImage");
+    ditherjs32Color.dither(options32colorImage, options32color);
+
+    //48 B&W
+    const ditherjs48BW = new DitherJS(options48bw);
+    const options48BWImage = document.getElementById("options48BWImage");
+    ditherjs48BW.dither(options48BWImage, options48bw);
+
+    //48 color
+    const ditherjs48Color = new DitherJS(options48color);
+    const options48colorImage = document.getElementById("options48colorImage");
+    ditherjs48Color.dither(options48colorImage, options48color);
+
+    setDithered(true);
+  };
+
+  //getting the token for redirection
+  const sendPayment = async () => {
+    if (!totoalAmountToBePaid == 0) {
+      setPaymentInProcess(true);
+      setTextToBeShownWhileLoading("Calculating blocks");
+      let dimensions = "";
+      const stripe = await stripePromise;
+
+      //getting the document for conversion
+      if (IDForDitheredImage == "first") {
+        var canvas = document.getElementById("first_one");
+        dimensions = "32x32";
+      } else if (IDForDitheredImage == "second") {
+        var canvas = document.getElementById("second_one");
+        dimensions = "32x32";
+      } else if (IDForDitheredImage == "third") {
+        var canvas = document.getElementById("third_one");
+        dimensions = "48x48";
+      } else {
+        var canvas = document.getElementById("fourth_one");
+        dimensions = "48x48";
+      }
+
+      let obj = [];
+
+      setTimeout(() => {
+        if (IDForDitheredImage == "first") {
+          //bricks
+          let white = 0;
+          let black = 0;
+          let mediumStoneGrey = 0;
+          let darkStoneGrey = 0;
+
+          //getting the actual image
+          var canvas = document.getElementsByClassName("options32BWImage")[0];
+
+          //finding the colors palletes accordingly
+          for (let xAxis = 0; xAxis < 640; xAxis += 20) {
+            for (let yAxis = 0; yAxis < 640; yAxis += 20) {
+              var color = getCanvasPixelColor(canvas, xAxis, yAxis);
+              console.log(color.rgb);
+              if (color.rgb == "rgb(242,243,242)") {
+                white++;
+              } else if (color.rgb == "rgb(27,42,52)") {
+                black++;
+              } else if (color.rgb == "rgb(163,162,164)") {
+                mediumStoneGrey++;
+              } else {
+                darkStoneGrey++;
+              }
+            }
+          }
+
+          setLoadingForSelect(false);
+
+          //object to be sent to the backend
+          obj = [white, black, mediumStoneGrey, darkStoneGrey];
+          setInstructionsObject(obj);
+        } else if (IDForDitheredImage == "second") {
+          //bricks
+          let white = 0;
+          let black = 0;
+          let mediumStoneGrey = 0;
+          let darkStoneGrey = 0;
+          let brickYellow = 0;
+          let brightYellow = 0;
+          let brightRed = 0;
+          let brightBlue = 0;
+          let darkGreen = 0;
+          let brightOrange = 0;
+          let brightReddishViolet = 0;
+          let reddishBrown = 0;
+
+          //getting the actual image
+          var canvas = document.getElementsByClassName(
+            "options32colorImage"
+          )[0];
+
+          //finding the colors palletes accordingly
+          for (let xAxis = 0; xAxis < 640; xAxis += 20) {
+            for (let yAxis = 0; yAxis < 640; yAxis += 20) {
+              var color = getCanvasPixelColor(canvas, xAxis, yAxis);
+              console.log(color.rgb);
+              if (color.rgb == "rgb(242,243,242)") {
+                white++;
+              } else if (color.rgb == "rgb(27,42,52)") {
+                black++;
+              } else if (color.rgb == "rgb(163,162,164)") {
+                mediumStoneGrey++;
+              } else if (color.rgb == "rgb(99,95,97)") {
+                darkStoneGrey++;
+              } else if (color.rgb == "rgb(215,197,153)") {
+                brickYellow++;
+              } else if (color.rgb == "rgb(196,40,27)") {
+                brightRed++;
+              } else if (color.rgb == "rgb(13,105,171)") {
+                brightBlue++;
+              } else if (color.rgb == "rgb(245,205,47)") {
+                brightYellow++;
+              } else if (color.rgb == "rgb(40,127,70)") {
+                darkGreen++;
+              } else if (color.rgb == "rgb(231,99,24)") {
+                brightOrange++;
+              } else if (color.rgb == "rgb(146,57,120)") {
+                brightReddishViolet++;
+              } else if (color.rgb == "rgb(105,64,39)") {
+                reddishBrown++;
+              }
+            }
+          }
+
+          setLoadingForSelect(false);
+
+          //object to be sent to the backend
+          obj = [
+            white,
+            black,
+            mediumStoneGrey,
+            darkStoneGrey,
+            brickYellow,
+            brightBlue,
+            brightOrange,
+            brightRed,
+            darkGreen,
+            brightReddishViolet,
+            reddishBrown,
+            brightYellow,
+          ];
+          setInstructionsObject(obj);
+        } else if (IDForDitheredImage == "third") {
+          //bricks
+          let white = 0;
+          let black = 0;
+          let mediumStoneGrey = 0;
+          let darkStoneGrey = 0;
+
+          //getting the actual image
+          var canvas = document.getElementsByClassName("options48BWImage")[0];
+
+          //finding the colors palletes accordingly
+          for (let xAxis = 0; xAxis < 960; xAxis += 20) {
+            for (let yAxis = 0; yAxis < 960; yAxis += 20) {
+              var color = getCanvasPixelColor(canvas, xAxis, yAxis);
+              console.log(color);
+              if (color.rgb == "rgb(242,243,242)") {
+                white++;
+              } else if (color.rgb == "rgb(27,42,52)") {
+                black++;
+              } else if (color.rgb == "rgb(163,162,164)") {
+                mediumStoneGrey++;
+              } else {
+                darkStoneGrey++;
+              }
+            }
+          }
+
+          setLoadingForSelect(false);
+
+          //object to be sent to the backend
+          obj = [white, black, mediumStoneGrey, darkStoneGrey];
+          setInstructionsObject(obj);
+        } else {
+          //bricks
+          let white = 0;
+          let black = 0;
+          let mediumStoneGrey = 0;
+          let darkStoneGrey = 0;
+          let brickYellow = 0;
+          let brightYellow = 0;
+          let brightRed = 0;
+          let brightBlue = 0;
+          let darkGreen = 0;
+          let brightOrange = 0;
+          let brightReddishViolet = 0;
+          let reddishBrown = 0;
+
+          //getting the actual image
+          var canvas = document.getElementsByClassName(
+            "options48colorImage"
+          )[0];
+
+          //finding the colors palletes accordingly
+          for (let xAxis = 0; xAxis < 960; xAxis += 20) {
+            for (let yAxis = 0; yAxis < 960; yAxis += 20) {
+              var color = getCanvasPixelColor(canvas, xAxis, yAxis);
+              console.log(color);
+              if (color.rgb == "rgb(242,243,242)") {
+                white++;
+              } else if (color.rgb == "rgb(27,42,52)") {
+                black++;
+              } else if (color.rgb == "rgb(163,162,164)") {
+                mediumStoneGrey++;
+              } else if (color.rgb == "rgb(99,95,97)") {
+                darkStoneGrey++;
+              } else if (color.rgb == "rgb(215,197,153)") {
+                brickYellow++;
+              } else if (color.rgb == "rgb(196,40,27)") {
+                brightRed++;
+              } else if (color.rgb == "rgb(13,105,171)") {
+                brightBlue++;
+              } else if (color.rgb == "rgb(245,205,47)") {
+                brightYellow++;
+              } else if (color.rgb == "rgb(40,127,70)") {
+                darkGreen++;
+              } else if (color.rgb == "rgb(231,99,24)") {
+                brightOrange++;
+              } else if (color.rgb == "rgb(146,57,120)") {
+                brightReddishViolet++;
+              } else if (color.rgb == "rgb(105,64, 39)") {
+                reddishBrown++;
+              }
+            }
+          }
+
+          setLoadingForSelect(false);
+
+          //object to be sent to the backend
+          obj = [
+            white,
+            black,
+            mediumStoneGrey,
+            darkStoneGrey,
+            brickYellow,
+            brightBlue,
+            brightOrange,
+            brightRed,
+            darkGreen,
+            brightReddishViolet,
+            reddishBrown,
+            brightYellow,
+          ];
+          setInstructionsObject(obj);
+        }
+        console.log("array: ", obj);
+        setTextToBeShownWhileLoading("Fetching those legos");
+
+        //getting the dithered image
+        domtoimage
+          .toBlob(canvas)
+          .then(function (blob) {
+            const rootRef = storage.ref();
+            const date = Date.now();
+            let refURLDitheredImage = `${date}/image1.jpg`;
+            const fileRefDitheredImage = rootRef.child(refURLDitheredImage);
+
+            fileRefDitheredImage
+              .put(blob)
+              .then(function (snapshot) {
+                let refURL = `${date}/image2.jpg`;
+                const fileRef = rootRef.child(refURL);
+                setTextToBeShownWhileLoading("Now painting the legos");
+
+                fileRef.put(fileToBeUsed).then(function (snapshot) {
+                  //calling the back end function to generate session id for checkout
+
+                  setTimeout(() => {
+                    setTextToBeShownWhileLoading("Almost there");
+                  }, 200);
+                  console.log(obj);
+                  axios
+                    .get(
+                      `https://cors-anywhere.herokuapp.com/https://us-central1-to-brick-clone.cloudfunctions.net/checkout?amount=${totoalAmountToBePaid}&instructions=${obj}&date=${date}&dimensions=${dimensions}`
+                    )
+                    .then((res) => {
+                      console.log("res", res);
+                      // When the customer clicks on the button, redirect them to Checkout.
+                      stripe.redirectToCheckout({
+                        sessionId: res.data.id,
+                      });
+                    })
+                    .catch((err) => {
+                      console.log(err);
+                    });
+                });
+              })
+              .catch((err) => {
+                console.log("err in second promise: ", err);
+              });
+          })
+          .catch((err) => {
+            console.log("err in first promise: ", err);
+          });
+      }, 1000);
     } else {
-      const ditherjs32Color = new DitherJS(options48color);
-      const options48colorImage = document.getElementById(
-        "options48colorImage"
-      );
-      ditherjs32Color.dither(options48colorImage, options48color);
+      setErrorInAmountToBePaid(true);
     }
   };
 
+  //changing payment amount
+  const handlePaymentAmount = (e) => {
+    setErrorInAmountToBePaid(false);
+    setShowPayButton(false);
+    const { value, id } = e.target;
+    setIDForDitheredImage(id);
+    setShowPayButton(true);
+    setTotalAmountToBePaid(value);
+  };
+
   return (
-    <div className="container">
-      {/* Upload image button */}
-      {/* START */}
-      <div className="offset-3 col-5 pt-5 mt-5">
-        <div className="text-center">
-          <Dropzone onDrop={(acceptedFiles) => changeImage(acceptedFiles)}>
-            {({ getRootProps, getInputProps }) => (
-              <section className="">
-                <div
-                  {...getRootProps()}
-                  className="border p-5 custom-border-image"
-                >
-                  <input {...getInputProps()} />
-                  <p>
-                    {imageToBeUsed != ""
-                      ? "Change image?"
-                      : "Drag 'n drop a here, or click to select one"}
-                  </p>
-                </div>
-              </section>
-            )}
-          </Dropzone>
-          {/* END */}
-
-          {/* this will only appear when image is uploaded */}
-          {imageToBeUsed != "" ? (
-            <>
-              {/* Crop Image */}
-              {/* START */}
-              <div className="pt-5 mt-3 ">
-                <Cropper
-                  style={{ height: "50", width: "100%" }}
-                  initialAspectRatio={1}
-                  preview=".img-preview"
-                  src={imageToBeUsed}
-                  viewMode={1}
-                  guides={true}
-                  minCropBoxHeight={10}
-                  minCropBoxWidth={10}
-                  background={false}
-                  responsive={true}
-                  autoCropArea={1}
-                  checkOrientation={false} // https://github.com/fengyuanchen/cropperjs/issues/671
-                  cropBoxResizable={false}
-                  onInitialized={(instance) => {
-                    setCropper(instance);
-                  }}
-                />
-              </div>
-              <button className="btn btn-primary" onClick={_crop}>
-                Crop
-              </button>
-              {/* <div
-                className="box pt-4 pb-4"
-                style={{ width: "100%", float: "right" }}
-              >
-                <h1>Cropped Image</h1>
-                <div
-                  id="cropped-image"
-                  className="img-preview"
-                  style={{ width: "100%", height: "300px" }}
-                />{" "}
-              </div> */}
-
-              {/* END */}
-            </>
-          ) : (
-            <></>
-          )}
-        </div>
-      </div>
-
-      {/* 4 option menu */}
-      {/* START */}
-      {imageToBeUsed != "" && croppedImage != "" ? (
-        <>
-          <div className="text-center alert alert-info mt-3">
-            Please double click the button to dither
-          </div>
-          <div
-            id="1"
-            className="col-2 ml-5 btn btn-primary mt-2"
-            onClick={ditherImage}
-          >
-            32x32 B&W
-          </div>
-          <div
-            id="2"
-            className="col-2 ml-5 btn btn-primary mt-2"
-            onClick={ditherImage}
-          >
-            32x32 Colored
-          </div>
-          <div
-            id="3"
-            className="col-2 ml-5 btn btn-primary mt-2"
-            onClick={ditherImage}
-          >
-            48x48 B&W
-          </div>
-          <div
-            id="4"
-            className="col-2 ml-5 btn btn-primary mt-2"
-            onClick={ditherImage}
-          >
-            48x48 Colored
-          </div>
-        </>
+    <div>
+      {loadingForSelect ? (
+        <div className="loading-container">Please wait</div>
       ) : (
         <></>
       )}
+      <div className="container">
+        {/* Upload image button */}
+        {/* START */}
+        <div className="offset-3 col-5 pt-5 mt-5">
+          <div className="text-center">
+            <Dropzone onDrop={(acceptedFiles) => changeImage(acceptedFiles)}>
+              {({ getRootProps, getInputProps }) => (
+                <section className="">
+                  <div
+                    {...getRootProps()}
+                    className="border p-5 custom-border-image"
+                  >
+                    <input {...getInputProps()} />
+                    <p>
+                      {imageToBeUsed != ""
+                        ? "Change image?"
+                        : "Drag 'n drop a here, or click to select one"}
+                    </p>
+                  </div>
+                </section>
+              )}
+            </Dropzone>
+            {/* END */}
 
-      {/* 4 option menu */}
-      {/* END */}
+            {/* this will only appear when image is uploaded */}
+            {imageToBeUsed != "" ? (
+              <>
+                {/* Crop Image */}
+                {/* START */}
+                <div id="image-to" className="pt-5 mt-3 ">
+                  <Cropper
+                    style={{ height: "50", width: "100%" }}
+                    initialAspectRatio={1}
+                    preview=".img-preview"
+                    src={imageToBeUsed}
+                    viewMode={1}
+                    guides={true}
+                    minCropBoxHeight={10}
+                    minCropBoxWidth={10}
+                    background={false}
+                    responsive={true}
+                    autoCropArea={1}
+                    checkOrientation={false} // https://github.com/fengyuanchen/cropperjs/issues/671
+                    cropBoxResizable={false}
+                    onInitialized={(instance) => {
+                      setCropper(instance);
+                    }}
+                  />
+                </div>
+                <button className="btn btn-primary" onClick={_crop}>
+                  Crop
+                </button>
+                {croppedImage != "" ? (
+                  <button className="btn btn-primary" onClick={ditherImage}>
+                    Dither
+                  </button>
+                ) : (
+                  <></>
+                )}
 
-      {/* DITHERING START */}
-      {croppedImage != "" && currentImageID == "" ? (
-        <>
-          <div class="pt-5 m-2">
-            <img
-              // id="options32BWImage"
-              src={croppedImage}
-              height="640"
-              width="640"
-              // style={{ display: "none;" }}
-            />
+                <div className="mt-4">
+                  <Range
+                    className="mt-3"
+                    step={0.1}
+                    min={0}
+                    max={100}
+                    values={values}
+                    onChange={(newValue) => {
+                      setValues(newValue);
+                    }}
+                    renderTrack={({ props, children }) => (
+                      <div
+                        {...props}
+                        style={{
+                          ...props.style,
+                          height: "6px",
+                          width: "100%",
+                          backgroundColor: "#ccc",
+                        }}
+                      >
+                        {children}
+                      </div>
+                    )}
+                    renderThumb={({ props }) => (
+                      <div
+                        {...props}
+                        style={{
+                          ...props.style,
+                          height: "42px",
+                          width: "42px",
+                          backgroundColor: "#999",
+                        }}
+                      />
+                    )}
+                  />
+                </div>
+
+                {/* END */}
+              </>
+            ) : (
+              <></>
+            )}
           </div>
-        </>
-      ) : (
-        <>
-          {currentImageID == "1" ? (
-            <>
-              <div class="pt-5 m-2">
-                <img
-                  id="options32BWImage"
-                  src={croppedImage}
-                  height="640"
-                  width="640"
-                  // style={{ display: "none;" }}
-                />
-              </div>
-              <div class="input-group mt-3 pb-5 mb-4">
-                <div class="input-group-prepend">
-                  <label class="input-group-text" for="inputGroupSelect01">
-                    Wall Art Version
-                  </label>
-                </div>
-                <select class="custom-select" id="inputGroupSelect01">
-                  <option selected>Please Select One</option>
-                  <option value="Box set version">Box set version($$)</option>
-                  <option value="Assembled version">
-                    Assembled version($$)
-                  </option>
-                </select>
-              </div>
-              <button className="btn btn-primary offset-3 col-5">Pay</button>
-            </>
-          ) : (
-            <></>
-          )}
+        </div>
 
-          {currentImageID == "2" ? (
-            <>
+        {/* DITHERING START */}
+        {croppedImage != "" ? (
+          <div className="row overflow-y">
+            <div className="col">
               <div class="pt-5 m-2">
-                <img
-                  id="options32colorImage"
-                  src={croppedImage}
-                  height="640"
-                  width="640"
-                  // style={{ display: "none;" }}
-                />
+                <div id="first_one" class="container32">
+                  <img
+                    id="options32BWImage"
+                    src={croppedImage}
+                    height="640"
+                    width="640"
+                    className="options32BWImage"
+                    // style={{ display: "none;" }}
+                  />
+                  {dithered ? <div class="peg"></div> : <></>}
+                </div>
               </div>
+              {/* {loadingForSelect && IDForDitheredImage == "first" ? (
+                <div className="col-12 alert alert-info text-center">
+                  Calculating, please wait
+                </div>
+              ) : (
+                <></>
+              )} */}
               <div class="input-group mt-3 pb-5 mb-4">
                 <div class="input-group-prepend">
                   <label class="input-group-text" for="inputGroupSelect01">
                     Wall Art Version
                   </label>
                 </div>
-                <select class="custom-select" id="inputGroupSelect01">
-                  <option selected>Please Select One</option>
-                  <option value="Box set version">Box set version($$)</option>
-                  <option value="Assembled version">
-                    Assembled version($$)
-                  </option>
-                </select>
-              </div>
-              <button className="btn btn-primary offset-3 col-5">Pay</button>
-            </>
-          ) : (
-            <></>
-          )}
 
-          {currentImageID == "3" ? (
-            <>
-              <div class="pt-5 m-2">
-                <img
-                  id="options48BWImage"
-                  src={croppedImage}
-                  height="960"
-                  width="960"
-                  // style={{ display: "none;" }}
-                />
-              </div>
-              <div class="input-group mt-3 pb-5 mb-4">
-                <div class="input-group-prepend">
-                  <label class="input-group-text" for="inputGroupSelect01">
-                    Wall Art Version
-                  </label>
-                </div>
-                <select class="custom-select" id="inputGroupSelect01">
+                <select
+                  onChange={handlePaymentAmount}
+                  class="custom-select"
+                  id="first"
+                  disabled={!dithered}
+                >
                   <option selected>Please Select One</option>
-                  <option value="Box set version">Box set version($$)</option>
-                  <option value="Assembled version">
-                    Assembled version($$)
-                  </option>
+                  <option value="100">Box set version (1$)</option>
+                  <option value="200">Assembled version(2$)</option>
                 </select>
               </div>
-              <button className="btn btn-primary offset-3 col-5">Pay</button>
-            </>
-          ) : (
-            <></>
-          )}
-          {currentImageID == "4" ? (
-            <>
+              {/* <button onClick={handlePayment} className="btn btn-primary offset-3 col-5">Pay</button> */}
+            </div>
+            <div className="col">
               <div class="pt-5 m-2">
-                <img
-                  id="options48colorImage"
-                  src={croppedImage}
-                  height="960"
-                  width="960"
-                  // style={{ display: "none;" }}
-                />
+                <div id="second_one" class="container32">
+                  <img
+                    id="options32colorImage"
+                    src={croppedImage}
+                    height="640"
+                    width="640"
+                    className="options32colorImage"
+                    // style={{ display: "none;" }}
+                  />
+                  {dithered ? <div class="peg"></div> : <></>}
+                </div>
               </div>
+              {loadingForSelect && IDForDitheredImage == "second" ? (
+                <div className="col-12 alert alert-info text-center">
+                  Calculating, please wait
+                </div>
+              ) : (
+                <></>
+              )}
 
               <div class="input-group mt-3 pb-5 mb-4">
                 <div class="input-group-prepend">
@@ -361,23 +622,134 @@ function App() {
                     Wall Art Version
                   </label>
                 </div>
-                <select class="custom-select" id="inputGroupSelect01">
+
+                <select
+                  onChange={handlePaymentAmount}
+                  class="custom-select"
+                  id="second"
+                  disabled={!dithered}
+                >
                   <option selected>Please Select One</option>
-                  <option value="Box set version">Box set version($$)</option>
-                  <option value="Assembled version">
-                    Assembled version($$)
-                  </option>
+                  <option value="100">Box set version (1$)</option>
+                  <option value="200">Assembled version(2$)</option>
                 </select>
               </div>
-              <button className="btn btn-primary offset-3 col-5">Pay</button>
-            </>
-          ) : (
-            <></>
-          )}
-        </>
-      )}
+              {/* <button onClick={handlePayment} className="btn btn-primary offset-3 col-5">Pay</button> */}
+            </div>
 
-      {/* DITHERING END */}
+            <div className="col">
+              <div class="pt-5 m-2">
+                <div id="third_one" class="container48">
+                  <img
+                    id="options48BWImage"
+                    src={croppedImage}
+                    height="960"
+                    width="960"
+                    className="options48BWImage"
+                    // style={{ display: "none;" }}
+                  />
+                  {dithered ? <div class="peg"></div> : <></>}
+                </div>
+              </div>
+              <div class="input-group mt-3 pb-5 mb-4">
+                {loadingForSelect && IDForDitheredImage == "third" ? (
+                  <div className="col-12 alert alert-info text-center">
+                    Calculating, please wait
+                  </div>
+                ) : (
+                  <></>
+                )}
+
+                <div class="input-group-prepend">
+                  <label class="input-group-text" for="inputGroupSelect01">
+                    Wall Art Version
+                  </label>
+                </div>
+
+                <select
+                  onChange={handlePaymentAmount}
+                  class="custom-select"
+                  id="third"
+                  disabled={!dithered}
+                >
+                  <option selected>Please Select One</option>
+                  <option value="100">Box set version (1$)</option>
+                  <option value="200">Assembled version(2$)</option>
+                </select>
+              </div>
+              {/* <button onClick={handlePayment} className="btn btn-primary offset-3 col-5">Pay</button> */}
+            </div>
+            <div className="col">
+              <div id="fourth_one" class="pt-5 m-2">
+                <div class="container48">
+                  <img
+                    id="options48colorImage"
+                    src={croppedImage}
+                    height="960"
+                    width="960"
+                    className="options48colorImage"
+                    // style={{ display: "none;" }}
+                  />
+                  {dithered ? <div class="peg"></div> : <></>}
+                </div>
+              </div>
+              <div class="input-group mt-3 pb-5 mb-4">
+                {loadingForSelect && IDForDitheredImage == "fourth" ? (
+                  <div className="col-12 alert alert-info text-center">
+                    Calculating, please wait
+                  </div>
+                ) : (
+                  <></>
+                )}
+
+                <div class="input-group-prepend">
+                  <label class="input-group-text" for="inputGroupSelect01">
+                    Wall Art Version
+                  </label>
+                </div>
+
+                <select
+                  onChange={handlePaymentAmount}
+                  class="custom-select"
+                  id="fourth"
+                  disabled={!dithered}
+                >
+                  <option selected>Please Select One</option>
+                  <option value="100">Box set version (1$)</option>
+                  <option value="200">Assembled version(2$)</option>
+                </select>
+              </div>
+              {/* <button onClick={handlePayment} className="btn btn-primary offset-3 col-5">Pay</button> */}
+            </div>
+
+            {textToBeShownWhileLoading != "" ? (
+              <div className="col-12 alert alert-info">
+                {textToBeShownWhileLoading}
+              </div>
+            ) : (
+              <></>
+            )}
+            {showPayButton ? (
+              <button
+                role="link"
+                onClick={sendPayment}
+                className={
+                  "btn btn-primary col-4 " +
+                  (paymentInProcess ? "disabled" : "")
+                }
+              >
+                {paymentInProcess ? "Please Wait" : "Pay"}
+              </button>
+            ) : (
+              <></>
+            )}
+          </div>
+        ) : (
+          <></>
+        )}
+
+        {/* DITHERING END */}
+      </div>
     </div>
   );
 }
