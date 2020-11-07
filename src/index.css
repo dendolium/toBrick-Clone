@@ -48,6 +48,11 @@
 .overflow-y {
   overflow-x: scroll;
   overflow-y: hidden;
+  opacity: 0;
+}
+
+.opacity {
+  opacity: 1;
 }
 
 .loading-container {
@@ -62,4 +67,44 @@
   font-size: 1.2em;
   background-color: white;
   z-index: 12345678;
+}
+
+.crop-container {
+  /* position: absolute; */
+  /* top: 0;
+  left: 0;
+  right: 0;
+  bottom: 80px; */
+}
+
+.controls {
+  /* position: absolute; */
+  /* bottom: 0;
+  left: 50%;
+  width: 50%; */
+  /* transform: translateX(-50%); */
+  /* height: 80px; */
+  /* display: flex; */
+  /* align-items: center; */
+  padding-top: 270px;
+}
+
+.slider {
+  padding-top: 100px;
+}
+#image-to {
+  position: relative;
+  padding-top: 50vh;
+  height: 50vh;
+  z-index: 123456;
+  margin-bottom: 10vh;
+}
+
+.cropped-preview {
+  margin-top: 30vh;
+}
+
+.button-centered {
+  margin-left: 45%;
+  margin-top: 10vh;
 }

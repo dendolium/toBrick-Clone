@@ -1,17 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import Dropzone from "react-dropzone";
-import Cropper from "react-cropper";
-import "cropperjs/dist/cropper.css";
+// import Cropper from "react-cropper";
+// import "cropperjs/dist/cropper.css";
 import * as imageConversion from "image-conversion";
 import * as DitherJS from "ditherjs";
-// import Stripe from 'stripe';
-// const stripe = new Stripe('pk_test_51HcHKQHgSkHhHhou2FYxwoAig6hXBSPneKhX5X80nnSFynEDyltmVkPOKy0nbd0Y3HDSwyNSUC2RMrzaLHZ0zcfF00DLLeY3Nj');
 import getCanvasPixelColor from "get-canvas-pixel-color";
 import { Range } from "react-range";
 import { loadStripe } from "@stripe/stripe-js";
 import axios from "axios";
 import { storage } from "./firebase";
 import domtoimage from "dom-to-image";
+import Cropper from "react-easy-crop";
+import Slider from "@material-ui/core/Slider";
+import getCroppedImg from "./croppedImage";
 
 const stripePromise = loadStripe(
   "pk_test_51HcHKQHgSkHhHhou2FYxwoAig6hXBSPneKhX5X80nnSFynEDyltmVkPOKy0nbd0Y3HDSwyNSUC2RMrzaLHZ0zcfF00DLLeY3Nj"
@@ -82,7 +83,7 @@ function App() {
   const [cropper, setCropper] = useState(0);
   const [imageToBeUsed, setImageToBeUsed] = useState("");
   const [fileToBeUsed, setFileToBeUsed] = useState("");
-  const [croppedImage, setCroppedImage] = useState("");
+  // const [croppedImage, setCroppedImage] = useState("");
   const [dithered, setDithered] = useState(false);
   const [values, setValues] = useState([0]);
   const [totoalAmountToBePaid, setTotalAmountToBePaid] = useState(0);
@@ -111,9 +112,9 @@ function App() {
   };
 
   //setting the croppedImage
-  const _crop = () => {
-    setCroppedImage(cropper.getCroppedCanvas().toDataURL());
-  };
+  // const _crop = () => {
+  //   setCroppedImage(cropper.getCroppedCanvas().toDataURL());
+  // };
 
   //apply dithering to specific image
   const ditherImage = (e) => {
@@ -438,6 +439,34 @@ function App() {
     setTotalAmountToBePaid(value);
   };
 
+  // cropper states
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [croppedImage, setCroppedImage] = useState("");
+
+  const _crop = useCallback(async () => {
+    setDithered(false);
+    setCroppedImage("");
+    try {
+      const croppedImage = await getCroppedImg(
+        imageToBeUsed,
+        croppedAreaPixels
+      );
+      console.log("donee", { croppedImage });
+      setCroppedImage(croppedImage);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [croppedAreaPixels]);
+
+  const onClose = useCallback(() => {
+    setCroppedImage(null);
+  }, []);
+
   return (
     <div>
       {loadingForSelect ? (
@@ -475,72 +504,50 @@ function App() {
                 {/* Crop Image */}
                 {/* START */}
                 <div id="image-to" className="pt-5 mt-3 ">
-                  <Cropper
-                    style={{ height: "50", width: "100%" }}
-                    initialAspectRatio={1}
-                    preview=".img-preview"
-                    src={imageToBeUsed}
-                    viewMode={1}
-                    guides={true}
-                    minCropBoxHeight={10}
-                    minCropBoxWidth={10}
-                    background={false}
-                    responsive={true}
-                    autoCropArea={1}
-                    checkOrientation={false} // https://github.com/fengyuanchen/cropperjs/issues/671
-                    cropBoxResizable={false}
-                    onInitialized={(instance) => {
-                      setCropper(instance);
-                    }}
-                  />
+                  <div className="crop-container">
+                    <Cropper
+                      image={imageToBeUsed}
+                      crop={crop}
+                      zoom={zoom}
+                      aspect={1}
+                      onCropChange={setCrop}
+                      onCropComplete={onCropComplete}
+                      onZoomChange={setZoom}
+                    />
+                  </div>
+                  <div className="controls">
+                    <Slider
+                      value={zoom}
+                      min={1}
+                      max={3}
+                      step={0.1}
+                      aria-labelledby="Zoom"
+                      onChange={(e, zoom) => setZoom(zoom)}
+                      // classes={{ container: "slider" }}
+                      className="slider"
+                    />
+                    <button className="btn btn-primary" onClick={_crop}>
+                      Crop
+                    </button>
+                  </div>
                 </div>
-                <button className="btn btn-primary" onClick={_crop}>
-                  Crop
-                </button>
+
                 {croppedImage != "" ? (
-                  <button className="btn btn-primary" onClick={ditherImage}>
-                    Dither
-                  </button>
+                  <div className="cropped-preview">
+                    <h1>Cropped Image</h1>
+                    <img src={croppedImage} width="250" height="250" />
+                    <div className="row">
+                      <button
+                        className="btn btn-primary button-centered"
+                        onClick={ditherImage}
+                      >
+                        Dither
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <></>
                 )}
-
-                <div className="mt-4">
-                  <Range
-                    className="mt-3"
-                    step={0.1}
-                    min={0}
-                    max={100}
-                    values={values}
-                    onChange={(newValue) => {
-                      setValues(newValue);
-                    }}
-                    renderTrack={({ props, children }) => (
-                      <div
-                        {...props}
-                        style={{
-                          ...props.style,
-                          height: "6px",
-                          width: "100%",
-                          backgroundColor: "#ccc",
-                        }}
-                      >
-                        {children}
-                      </div>
-                    )}
-                    renderThumb={({ props }) => (
-                      <div
-                        {...props}
-                        style={{
-                          ...props.style,
-                          height: "42px",
-                          width: "42px",
-                          backgroundColor: "#999",
-                        }}
-                      />
-                    )}
-                  />
-                </div>
 
                 {/* END */}
               </>
@@ -552,7 +559,7 @@ function App() {
 
         {/* DITHERING START */}
         {croppedImage != "" ? (
-          <div className="row overflow-y">
+          <div className={"row overflow-y" + (dithered ? " opacity" : "")}>
             <div className="col">
               <div class="pt-5 m-2">
                 <div id="first_one" class="container32">
