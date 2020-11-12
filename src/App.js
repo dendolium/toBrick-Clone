@@ -96,19 +96,26 @@ function App() {
   const [textToBeShownWhileLoading, setTextToBeShownWhileLoading] = useState(
     ""
   );
+  const [errorLoadedImage, setErrorLoadedImage] = useState(false);
 
   //changing the image
   const changeImage = (files) => {
-    setImageToBeUsed(files[0].name);
-    setFileToBeUsed(files[0]);
-    setDithered(false);
-    setCroppedImage("");
+    const file = files[0];
 
-    console.log(files[0]);
-    imageConversion.filetoDataURL(files[0]).then((res) => {
-      //The res in the promise is a compressed Blob type (which can be treated as a File type) file;
-      setImageToBeUsed(res);
-    });
+    if (!file.name.includes(".jpg") && !file.name.includes(".jpeg")) {
+      setErrorLoadedImage(true);
+    } else {
+      setErrorLoadedImage(false);
+      setImageToBeUsed(file.name);
+      setFileToBeUsed(file);
+      setDithered(false);
+      setCroppedImage("");
+
+      imageConversion.filetoDataURL(file).then((res) => {
+        //The res in the promise is a compressed Blob type (which can be treated as a File type) file;
+        setImageToBeUsed(res);
+      });
+    }
   };
 
   //setting the croppedImage
@@ -474,10 +481,17 @@ function App() {
       ) : (
         <></>
       )}
-      <div className="container">
+      <div className="container pt-5 mt-5">
+        {errorLoadedImage ? (
+          <div className="alert alert-danger col-12 text-center">
+            Please upload a JPG or JPEG file
+          </div>
+        ) : (
+          <></>
+        )}
         {/* Upload image button */}
         {/* START */}
-        <div className="offset-3 col-5 pt-5 mt-5">
+        <div className="offset-3 col-5 ">
           <div className="text-center">
             <Dropzone onDrop={(acceptedFiles) => changeImage(acceptedFiles)}>
               {({ getRootProps, getInputProps }) => (
