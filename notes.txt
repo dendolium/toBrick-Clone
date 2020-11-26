@@ -1,0 +1,3 @@
+
+- redirect url to bricky.us in index/functions
+- stripe url verification

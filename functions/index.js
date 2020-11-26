@@ -76,32 +76,34 @@ exports.checkout = functions.https.onRequest(async (req, res) => {
   const { amount, instructions, date, dimensions } = req.query;
 
   let convertedInstructions = instructions.toString();
-  convertedInstructions = convertedInstructions.slice(1, -1);
+  // convertedInstructions = convertedInstructions.slice(1, -1);
   console.log(req.query);
   console.log(convertedInstructions);
 
-  try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: "Legos",
+  setTimeout(async () => {
+    try {
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: "Legos",
+              },
+              unit_amount: amount,
             },
-            unit_amount: amount,
+            quantity: 1,
           },
-          quantity: 1,
-        },
-      ],
-      mode: "payment",
-      success_url: `https://to-brick-clone.firebaseapp.com/success/${convertedInstructions}/{CHECKOUT_SESSION_ID}/${date}/${dimensions}/`,
-      cancel_url: "https://to-brick-clone.firebaseapp.com",
-      // cancel_url: "http://localhost:3000",
-    });
-    res.json({ id: session.id });
-  } catch (error) {
-    res.json({ error: error });
-  }
+        ],
+        mode: "payment",
+        success_url: `http://bricky.us/success/{CHECKOUT_SESSION_ID}/${date}/${dimensions}/${convertedInstructions}`,
+        cancel_url: "http://bricky.us",
+        // cancel_url: "http://localhost:3000",
+      });
+      res.json({ id: session.id });
+    } catch (error) {
+      res.json({ error: error });
+    }
+  }, 1000);
 });

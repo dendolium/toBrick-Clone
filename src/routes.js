@@ -10,7 +10,7 @@ export default function Routes() {
         <Route path="/" exact>
           <App />
         </Route>
-        <Route path="/success/:instructions/:session_id/:date/:dimensions">
+        <Route path="/success/:session_id/:date/:dimensions/:instructions">
           <Success />
         </Route>
       </Switch>

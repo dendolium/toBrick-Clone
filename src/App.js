@@ -400,31 +400,37 @@ function App() {
                 const fileRef = rootRef.child(refURL);
                 setTextToBeShownWhileLoading("Now painting the legos");
 
-                fileRef.put(fileToBeUsed).then(function (snapshot) {
-                  //calling the back end function to generate session id for checkout
+                fileRef
+                  .put(fileToBeUsed)
+                  .then(function (snapshot) {
+                    //calling the back end function to generate session id for checkout
 
-                  setTimeout(() => {
-                    setTextToBeShownWhileLoading("Almost there");
-                  }, 200);
-                  console.log(obj);
-                  axios
-                    .get(
-                      `https://cors-anywhere.herokuapp.com/https://us-central1-to-brick-clone.cloudfunctions.net/checkout?amount=${totoalAmountToBePaid}&instructions=${obj}&date=${date}&dimensions=${dimensions}`
-                    )
-                    .then((res) => {
-                      console.log("res", res);
-                      // When the customer clicks on the button, redirect them to Checkout.
-                      stripe.redirectToCheckout({
-                        sessionId: res.data.id,
+                    setTimeout(() => {
+                      setTextToBeShownWhileLoading("Almost there");
+                    }, 200);
+                    console.log(obj);
+                    axios
+                      .get(
+                        `https://cors-anywhere.herokuapp.com/https://us-central1-to-brick-clone.cloudfunctions.net/checkout?amount=${totoalAmountToBePaid}&instructions=${obj}&date=${date}&dimensions=${dimensions}`
+                        // `http://localhost:5001/to-brick-clone/us-central1/checkout?amount=${totoalAmountToBePaid}&instructions=${obj}&date=${date}&dimensions=${dimensions}`
+                      )
+                      .then((res) => {
+                        console.log("res", res);
+                        // When the customer clicks on the button, redirect them to Checkout.
+                        stripe.redirectToCheckout({
+                          sessionId: res.data.id,
+                        });
+                      })
+                      .catch((err) => {
+                        console.log(err);
                       });
-                    })
-                    .catch((err) => {
-                      console.log(err);
-                    });
-                });
+                  })
+                  .catch((err) => {
+                    console.log("second image not being put: ", err);
+                  });
               })
               .catch((err) => {
-                console.log("err in second promise: ", err);
+                console.log("err in first image: ", err);
               });
           })
           .catch((err) => {

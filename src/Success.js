@@ -9,6 +9,8 @@ export default function Success() {
   const [redirect, setRedirect] = useState(false);
 
   useEffect(() => {
+    console.log(instructions);
+
     console.log(instructions.split(","));
     const rootRef = storage.ref();
     let refURLDitheredImage = `${date}/image1.jpg`;
@@ -26,6 +28,8 @@ export default function Success() {
 
           let instructionsConverted = instructions.split(",");
 
+          console.log(instructions);
+
           if (instructionsConverted.length == 4) {
             var templateParams = {
               session_id,
@@ -36,6 +40,7 @@ export default function Success() {
               third: instructionsConverted[2],
               fourth: instructionsConverted[3],
               dimensions,
+              date,
             };
             var templateID = "template_luilbdk";
           } else {
@@ -57,8 +62,11 @@ export default function Success() {
               eleventh: instructionsConverted[10],
               twelveth: instructionsConverted[11],
               dimensions,
+              date,
             };
           }
+
+          console.log(templateParams);
 
           emailjs
             .send(
@@ -82,6 +90,7 @@ export default function Success() {
         console.log("err in dithering image download: ", err);
       });
   }, []);
+
   return (
     <div>
       {redirect ? <Redirect to="/" /> : <></>}
